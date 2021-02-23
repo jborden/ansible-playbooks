@@ -1,0 +1,4 @@
+---
+# https://stackoverflow.com/questions/43609132/ansible-how-to-call-a-playbook-from-another
+- import_playbook: ubuntu-initialize.yml
+  

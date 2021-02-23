@@ -1,0 +1,40 @@
+---
+- hosts: all
+  remote_user: root
+  tasks:
+  - name: Make sure we have a 'sudo' group
+    group:
+      name: sudo
+      state: present
+  - name: Make sure we have a 'docker' group
+    group:
+      name: docker
+      state: present
+  - name: create a regular 'user'
+    ansible.builtin.user:
+      name: james
+      comment: james
+      uid: 1040
+      groups: admin,sudo,docker
+  - name: configure passwordless sudo
+    lineinfile:
+      dest: /etc/sudoers
+      state: present
+      regexp: '^%sudo   ALL=(ALL:ALL) ALL'
+      line: '%sudo   ALL=(ALL:ALL) NOPASSWD: ALL'
+  - name: create the '.ssh' for james
+    file:
+      path: /home/james/.ssh
+      owner: james
+      group: james
+      state: directory
+  - name: copy authorized keys for user james
+    ansible.builtin.copy:
+      src: ~/.ssh/id_rsa.pub
+      dest: /home/james/.ssh/authorized_keys
+      owner: james
+      group: james
+      mode: '0600'
+      
+      
+  
