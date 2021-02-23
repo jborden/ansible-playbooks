@@ -1,0 +1,66 @@
+---
+- hosts: all
+  tasks:
+  - name: install and setup docker prereqs
+    become: true
+    apt:
+      name:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - gnupg-agent
+        - software-properties-common
+      state: present
+      update_cache: true
+      cache_valid_time: 3600
+# https://gist.github.com/rbq/886587980894e98b23d0eee2a1d84933
+  - name: Add Docker official GPG key
+    become: yes
+    apt_key:
+      state: present
+      keyserver: 'https://download.docker.com/linux/{{ansible_distribution|lower}}/gpg'
+      id: 7EA0A9C3F273FCD8
+      
+  - name: check Docker apt key has not been altered
+    become: yes
+    command: apt-key fingerprint 0EBFCD88
+    register: fingerprint_check
+    changed_when: False
+    failed_when: "'9DC8 5822 9FC7 DD38 854A  E2D8 8D81 803C 0EBF CD88' not in fingerprint_check.stdout"
+    
+  - name: Add Docker APT repository
+    apt_repository:
+      repo: deb [arch=amd64] https://download.docker.com/{{ ansible_system | lower }}/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable
+      
+  - name: Install Docker CE
+    become: yes
+    apt:
+      name: ['docker-ce', 'docker-ce-cli', 'containerd.io']
+      update_cache: yes
+
+  - name: start and enable docker daemon
+    service:
+      name: docker
+      state: started
+      enabled: yes
+
+  - name: check latest docker-compose release
+    uri:
+      url: https://api.github.com/repos/docker/compose/releases/latest
+      return_content: true
+    register: docker_compose_latest
+    
+  - name: fetch docker-compose checksum from v{{ docker_compose_latest.json.tag_name}} for {{ansible_system | lower}} {{ ansible_system }}-{{ ansible_machine}}
+    become: yes
+    uri:
+      url: https://github.com/docker/compose/releases/download/{{ docker_compose_latest.json.tag_name }}/docker-compose-{{ ansible_system }}-{{ ansible_machine}}.sha256
+      return_content: yes
+    register: docker_compose_checksum
+    
+  - name: install docker-compose v{{ docker_compose_latest.json.tag_name}}
+    become: yes
+    get_url:
+      url: https://github.com/docker/compose/releases/download/{{ docker_compose_latest.json.tag_name }}/docker-compose-{{ ansible_system }}-{{ ansible_machine }}
+      checksum: "sha256:{{ docker_compose_checksum.content.split(' ') | first }}"
+      dest: /usr/local/bin/docker-compose
+      mode: '0755'
