@@ -1,0 +1,21 @@
+---
+- hosts: all
+  vars:
+    docker_service_name: 'borden-dev'
+    domain_name: 'borden.dev'
+    nginx_install_dir: '~/nginx-certbot'
+  tasks:
+  - name: Clone the nginx-certbot to local machine
+    ansible.builtin.git:
+      repo: 'https://github.com/jborden/nginx-certbot.git'
+      dest:  "{{ nginx_install_dir}}"
+  - name: 'replace docker_service_name in "{{ nginx_install_dir }}/data/nginx/app.conf"'
+    ansible.builtin.replace:
+      path: "{{ nginx_install_dir}}/data/nginx/app.conf"
+      regexp: '__DOCKER_SERVICE_NAME__'
+      replace: "{{ docker_service_name }}"
+  - name: 'replace domain_name in "{{ nginx_install_dir }}/data/nginx/app.conf"'
+    ansible.builtin.replace:
+      path: "{{ nginx_install_dir}}/data/nginx/app.conf"
+      regexp: '__DOMAIN_NAME__'
+      replace: "{{ domain_name }}"

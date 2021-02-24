@@ -16,6 +16,10 @@
       comment: james
       uid: 1040
       groups: admin,sudo,docker
+  - name: change user shell to bash
+    user:
+      name: james
+      shell: /bin/bash
   - name: configure passwordless sudo
     lineinfile:
       dest: /etc/sudoers

@@ -29,6 +29,7 @@
     failed_when: "'9DC8 5822 9FC7 DD38 854A  E2D8 8D81 803C 0EBF CD88' not in fingerprint_check.stdout"
     
   - name: Add Docker APT repository
+    become: yes
     apt_repository:
       repo: deb [arch=amd64] https://download.docker.com/{{ ansible_system | lower }}/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable
       
@@ -39,6 +40,7 @@
       update_cache: yes
 
   - name: start and enable docker daemon
+    become: yes
     service:
       name: docker
       state: started
