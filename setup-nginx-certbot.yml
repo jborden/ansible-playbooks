@@ -1,21 +1,121 @@
 ---
 - hosts: all
   vars:
-    docker_service_name: 'borden-dev'
+    # set to "--staging" if you're testing your setup to avoid hitting request limits
+    # set to "" if this will go live
+    staging_arg: "" # "--staging"
+    # Adding a valid address is strongly recommended
+    email: 'jmborden@gmail.com'
+    docker_service_name: 'borden_dev'
     domain_name: 'borden.dev'
-    nginx_install_dir: '~/nginx-certbot'
+    nginx_certbot_dir: '~/nginx-certbot'
+    docker_network: "web-service"
+    nginx_data_path: "{{ nginx_certbot_dir }}/data/nginx"
+    certbot_data_path: "{{ nginx_certbot_dir}}/data/certbot"
+    certbot_conf_path: "{{ certbot_data_path }}/conf"
+    domain_keys_home: "{{ certbot_conf_path }}/live/{{ domain_name }}"
+    rsa_key_size: 4096
   tasks:
-  - name: Clone the nginx-certbot to local machine
-    ansible.builtin.git:
-      repo: 'https://github.com/jborden/nginx-certbot.git'
-      dest:  "{{ nginx_install_dir}}"
-  - name: 'replace docker_service_name in "{{ nginx_install_dir }}/data/nginx/app.conf"'
-    ansible.builtin.replace:
-      path: "{{ nginx_install_dir}}/data/nginx/app.conf"
-      regexp: '__DOCKER_SERVICE_NAME__'
-      replace: "{{ docker_service_name }}"
-  - name: 'replace domain_name in "{{ nginx_install_dir }}/data/nginx/app.conf"'
-    ansible.builtin.replace:
-      path: "{{ nginx_install_dir}}/data/nginx/app.conf"
-      regexp: '__DOMAIN_NAME__'
-      replace: "{{ domain_name }}"
+  - name: 'check if "{{ docker_network }}" network exists'
+    shell: docker network ls | grep {{ docker_network }}
+    register: docker_network_status
+    failed_when: not(docker_network_status.rc >= 0)
+    
+  - name: create discovery network
+    shell: docker network create {{ docker_network }}
+    when: docker_network_status.rc > 0
+      
+  - name: check if nginx is already running
+    shell: docker container ls | grep nginx
+    register: nginx_status
+    failed_when: not(nginx_status.rc >= 0)
+
+  - name: Check nginx current config file
+    shell: docker exec nginx nginx -T  | grep 'listen 443'
+    register: nginx_running_443
+    failed_when: not(nginx_running_443.rc >= 0)
+    
+  - name: 'create "{{ nginx_data_path }}"'
+    ansible.builtin.file:
+      path: "{{ nginx_data_path }}"
+      state: directory
+
+  - name: upload docker-compose file
+    template:
+      src: templates/nginx-certbot-docker-compose.j2
+      dest: "{{ nginx_certbot_dir }}/docker-compose.yml"
+
+  - name: Upload config file
+    template:
+      src: templates/nginx-app-conf-before-certbot.j2
+      dest: "{{ nginx_data_path }}/app.conf"
+    when: nginx_status.rc > 0
+      
+  - name: 'create "{{ certbot_conf_path }}"'
+    ansible.builtin.file:
+      path: "{{ certbot_conf_path }}"
+      state: directory
+      
+  - name: 'download recommended TLS parameters'
+    get_url:
+      url: 'https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf'
+      dest: "{{ certbot_conf_path }}"
+      
+  - name: 'download pem file'
+    get_url:
+      url: 'https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem'
+      dest: "{{ certbot_conf_path }}"
+      
+  - name: 'create {{ domain_keys_home }}'
+    file:
+      path: "{{ domain_keys_home }}"
+      state: directory
+
+  - name: start nginx
+    shell: |
+      cd {{ nginx_certbot_dir }} ;
+      docker stop nginx ;
+      docker rm nginx ;
+      docker-compose -p {{ docker_service_name }} up --force-recreate -d nginx
+    when: nginx_status.rc > 0 and nginx_running_443.rc > 0
+
+  - name: check stat of let's encrypt certs
+    stat:
+      path: "{{ domain_keys_home}}/fullchain.pem"
+    register: fullchain_pem
+    
+  - name: obtain let's encrypt certificates
+    shell: |
+      cd {{ nginx_certbot_dir }};
+      docker-compose -p {{ docker_service_name }} run --rm --entrypoint \
+      "certbot certonly --webroot -w /var/www/certbot \
+      {{ staging_arg }} \
+      --email {{ email }} \
+      -d {{ domain_name }} \
+      --rsa-key-size {{ rsa_key_size }} \
+      --agree-tos \
+      --force-renewal" certbot ;
+    when: not(fullchain_pem.stat.exists)
+
+  - name: Upload new nginx config file
+    template:
+      src: templates/nginx-app-conf-after-certbot.j2
+      dest: "{{ nginx_data_path }}/app.conf"
+    when: fullchain_pem.stat.exists and nginx_running_443.rc > 0
+
+  - name: check if certbot is running
+    shell: docker container ls | grep certbot
+    register: certbot_status
+    failed_when: not(certbot_status.rc >= 0)
+
+  - name: check stat of let's encrypt certs (again)
+    stat:
+      path: "{{ domain_keys_home}}/fullchain.pem"
+    register: fullchain_pem
+
+  - name: restart certbot and nginx services
+    shell: |
+      cd {{ nginx_certbot_dir }} ;
+      docker kill nginx ; 
+      docker-compose -p {{ docker_service_name }} up --build -d 
+    when: fullchain_pem.stat.exists and certbot_status.rc > 0
