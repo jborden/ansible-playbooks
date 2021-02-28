@@ -8,6 +8,8 @@ nginx   - HTTP proxy
 certbot - for HTTPS
 $name   - container which hosts the Clojure Web App
 
-# Notes
+# Initialization of Digital Ocean host
 
-https://stackoverflow.com/questions/43609132/ansible-how-to-call-a-playbook-from-another
+1. If you've changed servers (e.g. deleted and created a new one) you will need to delete current entry from ~/.ssh/known_hosts
+
+

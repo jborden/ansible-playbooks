@@ -1,6 +1,6 @@
 server {
     listen 80;
-    server_name {{ docker_service_name }};
+    server_name {{ domain_name }};
     server_tokens off;
 
     location /.well-known/acme-challenge/ {

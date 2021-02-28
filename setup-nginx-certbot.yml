@@ -84,7 +84,7 @@
       path: "{{ domain_keys_home}}/fullchain.pem"
     register: fullchain_pem
     
-  - name: obtain let's encrypt certificates
+  - name: obtain let's encrypt certificates... this may take some time
     shell: |
       cd {{ nginx_certbot_dir }};
       docker-compose -p {{ docker_service_name }} run --rm --entrypoint \
@@ -94,8 +94,14 @@
       -d {{ domain_name }} \
       --rsa-key-size {{ rsa_key_size }} \
       --agree-tos \
+      --non-interactive \
       --force-renewal" certbot ;
     when: not(fullchain_pem.stat.exists)
+
+  - name: recheck let's encrypt certs
+    stat:
+      path: "{{ domain_keys_home}}/fullchain.pem"
+    register: fullchain_pem
 
   - name: Upload new nginx config file
     template:
@@ -118,4 +124,4 @@
       cd {{ nginx_certbot_dir }} ;
       docker kill nginx ; 
       docker-compose -p {{ docker_service_name }} up --build -d 
-    when: fullchain_pem.stat.exists and certbot_status.rc > 0
+    when: fullchain_pem.stat.exists and (certbot_status.rc > 0 or nginx_running_443.rc > 0)
