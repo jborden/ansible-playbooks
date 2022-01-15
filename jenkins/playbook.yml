@@ -1,0 +1,20 @@
+- hosts: jenkins
+
+  vars:
+    jenkins_version: "2.73.1"
+    jenkins_hostname: "localhost"
+    jenkins_port: 8080
+    jenkins_install_via: "docker"
+    jenkins_jobs:
+      - "thrive"
+    jenkins_include_secrets: true
+    jenkins_include_custom_files: true
+    jenkins_custom_files:
+      - src: "jenkins.plugins.openstack.compute.UserDataConfig.xml"
+        dest: "jenkins.plugins.openstack.compute.UserDataConfig.xml"
+    jenkins_plugins:
+      - git
+      - blueocean
+    
+  roles:
+    - james.jenkins
