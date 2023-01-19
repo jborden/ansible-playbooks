@@ -1,6 +1,6 @@
 # Introduction
 
-This is a set of (Ansible)[https://github.com/ansible/ansible] tasks to compose a playbook for initializing a server with nginx to host a Java WAR service. In particular, for hosting Clojure Web Apps compiled into a WAR file.
+This is a set of [Ansible](https://github.com/ansible/ansible) tasks to compose a playbook for initializing a server with nginx to host a Java WAR file.
 
 The architecture is composed of multiple docker containers that are linked and managed via docker-compose. The architecture is as follows:
 
